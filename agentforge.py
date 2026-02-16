@@ -7,7 +7,6 @@ import os
 import logging
 import subprocess
 import numpy as np
-import faiss
 import streamlit as st
 from openai import OpenAI
 
@@ -213,4 +212,5 @@ if __name__ == "__main__":
         run_streamlit()
     else:
         run_cli()
+
 
