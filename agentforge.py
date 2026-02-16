@@ -75,42 +75,9 @@ class Tools:
         return f"Simulated web result for: {query}"
 
 
-# rag memory system (FAISS)
 
 
-class RAGSystem:
 
-    def __init__(self):
-        self.dimension = 1536
-        self.index = faiss.IndexFlatL2(self.dimension)
-        self.documents = []
-
-    def embed(self, text):
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
-        )
-        return np.array(response.data[0].embedding, dtype="float32")
-
-    def add_document(self, text):
-        vector = self.embed(text)
-        self.index.add(np.array([vector]))
-        self.documents.append(text)
-        log("Memory stored in FAISS.")
-
-    def search(self, query):
-        if len(self.documents) == 0:
-            return "No memory available."
-
-        vector = self.embed(query)
-        D, I = self.index.search(np.array([vector]), 1)
-        idx = I[0][0]
-
-        if idx < len(self.documents):
-            log("Memory retrieved from FAISS.")
-            return self.documents[idx]
-
-        return "No relevant memory found."
 
 # agents
 
@@ -246,3 +213,4 @@ if __name__ == "__main__":
         run_streamlit()
     else:
         run_cli()
+
