@@ -18,7 +18,7 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-MODEL_NAME = "gemini-1.5-flash"
+MODEL_NAME = "gemini-1.5-flash-latest"
 model = genai.GenerativeModel(MODEL_NAME)
 
 logging.basicConfig(level=logging.INFO)
@@ -116,3 +116,4 @@ if st.button("Execute Task"):
 
         st.success("Execution Complete")
         st.write(result)
+
