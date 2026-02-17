@@ -5,19 +5,21 @@
 import os
 import logging
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 
 
-# CONFIG #
+#  CONFIG 
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL = "gpt-4o-mini"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not OPENAI_API_KEY:
-    st.error("OPENAI_API_KEY not set.")
+if not GEMINI_API_KEY:
+    st.error("GEMINI_API_KEY not set in Streamlit Secrets.")
     st.stop()
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+
+MODEL_NAME = "gemini-1.5-flash"
+model = genai.GenerativeModel(MODEL_NAME)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +28,7 @@ def log(message):
     logging.info(f"[AgentForge] {message}")
 
 
-#  VALIDATION #
+#  VALIDATION 
 
 def validate(output):
     if not output:
@@ -36,38 +38,36 @@ def validate(output):
     return True
 
 
-# TOOLS #
+# TOOLS 
 
 class Tools:
 
     @staticmethod
     def calculator(expression):
         try:
+            
             result = eval(expression, {"__builtins__": {}})
             return str(result)
         except Exception as e:
             return f"Calculation error: {str(e)}"
 
 
-# AGENT  #
+# AGENT 
 
 class Agent:
 
-    def __init__(self, model):
-        self.model = model
-
     def think(self, task):
-        log("Thinking...")
+        try:
+            log("Sending request to Gemini...")
+            response = model.generate_content(task)
 
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are a helpful AI agent."},
-                {"role": "user", "content": task}
-            ]
-        )
+            if response.text:
+                return response.text
+            else:
+                return "No response generated."
 
-        return response.choices[0].message.content
+        except Exception as e:
+            return f"API Error: {str(e)}"
 
 
 # ORCHESTRATOR 
@@ -75,30 +75,31 @@ class Agent:
 class Orchestrator:
 
     def __init__(self):
-        self.agent = Agent(MODEL)
+        self.agent = Agent()
 
     def execute(self, task):
 
-        log("Executing task")
+        log("Executing task...")
 
-        if any(char.isdigit() for char in task):
+        # Simple math detection
+        if any(char.isdigit() for char in task) and any(op in task for op in ["+", "-", "*", "/"]):
             return Tools.calculator(task)
 
         result = self.agent.think(task)
 
         if validate(result):
-            log("Result validated")
+            log("Response validated.")
         else:
-            log("Validation failed")
+            log("Validation failed.")
 
         return result
 
 
-# STREAMLIT UI
+#  STREAMLIT UI 
 
 st.set_page_config(page_title="AgentForge", layout="wide")
 
-st.title(" AgentForge - Autonomous AI System")
+st.title(" AgentForge - BY ALGORANGERS")
 
 if "system" not in st.session_state:
     st.session_state.system = Orchestrator()
@@ -106,20 +107,12 @@ if "system" not in st.session_state:
 task = st.text_input("Enter your task:")
 
 if st.button("Execute Task"):
+
     if not task.strip():
         st.warning("Please enter a task.")
     else:
-        with st.spinner("Agent is working..."):
+        with st.spinner("Agent is thinking..."):
             result = st.session_state.system.execute(task)
 
         st.success("Execution Complete")
         st.write(result)
-
-
-
-
-
-
-
-
-
