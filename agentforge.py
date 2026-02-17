@@ -1,216 +1,124 @@
 """
-AGENTFORGE - Autonomous Multi-Agent Workflow System
-Hackathon Ready - Single File Version
+
 """
 
 import os
 import logging
-import subprocess
-import numpy as np
 import streamlit as st
 from openai import OpenAI
 
 
-# config
-
+# CONFIG #
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_LARGE = "gpt-4o"
-MODEL_SMALL = "gpt-4o-mini"
+MODEL = "gpt-4o-mini"
 
 if not OPENAI_API_KEY:
-    raise ValueError("Please set OPENAI_API_KEY environment variable.")
+    st.error("OPENAI_API_KEY not set.")
+    st.stop()
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
-# monitoring
-
-
 logging.basicConfig(level=logging.INFO)
+
 
 def log(message):
     logging.info(f"[AgentForge] {message}")
 
 
-# Validator: as antihallucination layer
-
+#  VALIDATION #
 
 def validate(output):
-    if output is None:
+    if not output:
         return False
     if "error" in output.lower():
         return False
     return True
 
 
-# tool-layer
-
+# TOOLS #
 
 class Tools:
 
     @staticmethod
     def calculator(expression):
         try:
-            result = eval(expression)
+            result = eval(expression, {"__builtins__": {}})
             return str(result)
         except Exception as e:
             return f"Calculation error: {str(e)}"
 
-    @staticmethod
-    def run_code(code):
-        try:
-            result = subprocess.check_output(
-                ["python", "-c", code],
-                stderr=subprocess.STDOUT,
-                timeout=5
-            )
-            return result.decode()
-        except Exception as e:
-            return f"Code execution error: {str(e)}"
 
-    @staticmethod
-    def web_lookup(query):
-        return f"Simulated web result for: {query}"
+# AGENT  #
 
-
-
-
-
-
-# agents
-
-class BaseAgent:
+class Agent:
 
     def __init__(self, model):
         self.model = model
 
-    def think(self, task, context=""):
-        log(f"Agent using model: {self.model}")
+    def think(self, task):
+        log("Thinking...")
 
         response = client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are an intelligent autonomous AI agent that reasons step by step."},
-                {"role": "user", "content": f"Task: {task}\nContext: {context}"}
+                {"role": "system", "content": "You are a helpful AI agent."},
+                {"role": "user", "content": task}
             ]
         )
 
         return response.choices[0].message.content
 
 
-class ResearchAgent(BaseAgent):
-    pass
-
-
-class MathAgent:
-    @staticmethod
-    def solve(expression):
-        return Tools.calculator(expression)
-
-
-class CodeAgent:
-    @staticmethod
-    def execute(code):
-        return Tools.run_code(code)
-
-
-# Mta agent for orchestrator
-
+# ORCHESTRATOR 
 
 class Orchestrator:
 
     def __init__(self):
-        self.rag = RAGSystem()
-        self.research_agent = ResearchAgent(MODEL_LARGE)
-
-    def choose_model(self, task):
-        if any(char.isdigit() for char in task):
-            return MODEL_SMALL
-        return MODEL_LARGE
-
-    def delegate(self, task):
-
-        log("Analyzing task...")
-
-        if "calculate" in task.lower():
-            expression = task.lower().replace("calculate", "")
-            return MathAgent.solve(expression)
-
-        elif "code" in task.lower():
-            code = task.replace("code", "")
-            return CodeAgent.execute(code)
-
-        else:
-            context = self.rag.search(task)
-            return self.research_agent.think(task, context)
+        self.agent = Agent(MODEL)
 
     def execute(self, task):
 
-        log("Starting orchestration")
+        log("Executing task")
 
-        result = self.delegate(task)
+        if any(char.isdigit() for char in task):
+            return Tools.calculator(task)
+
+        result = self.agent.think(task)
 
         if validate(result):
-            self.rag.add_document(result)
-            log("Result validated & stored in memory.")
+            log("Result validated")
         else:
-            log("Validation failed.")
+            log("Validation failed")
 
         return result
 
 
-# streamlit-ui
+ STREAMLIT UI
 
+st.set_page_config(page_title="AgentForge", layout="wide")
 
-def run_streamlit():
+st.title(" AgentForge - Autonomous AI System")
 
-    st.set_page_config(page_title="AgentForge", layout="wide")
+if "system" not in st.session_state:
+    st.session_state.system = Orchestrator()
 
-    st.title("🚀 AgentForge - Autonomous Multi-Agent System")
+task = st.text_input("Enter your task:")
 
-    if "system" not in st.session_state:
-        st.session_state.system = Orchestrator()
-
-    task = st.text_input("Enter your task:")
-
-    if st.button("Execute Task"):
-        with st.spinner("Agents are working..."):
+if st.button("Execute Task"):
+    if not task.strip():
+        st.warning("Please enter a task.")
+    else:
+        with st.spinner("Agent is working..."):
             result = st.session_state.system.execute(task)
 
         st.success("Execution Complete")
         st.write(result)
 
 
-# cli mode
 
 
-def run_cli():
-
-    system = Orchestrator()
-
-    while True:
-        task = input("\nEnter Task (or exit): ")
-
-        if task.lower() == "exit":
-            break
-
-        output = system.execute(task)
-
-        print("\n=== FINAL OUTPUT ===")
-        print(output)
 
 
-# entry-point
-
-
-if __name__ == "__main__":
-
-    mode = input("Type 'ui' for Streamlit UI or 'cli' for terminal mode: ").lower()
-
-    if mode == "ui":
-        run_streamlit()
-    else:
-        run_cli()
 
 
