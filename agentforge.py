@@ -2,118 +2,46 @@
 
 """
 
-import os
-import logging
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 
+# Page config
+st.set_page_config(page_title="Gemini Chat App", page_icon="🤖")
 
-#  CONFIG 
+st.title(" ALGORANGERS-MODEL")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Load API key 
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
-if not GEMINI_API_KEY:
-    st.error("GEMINI_API_KEY not set in Streamlit Secrets.")
-    st.stop()
+# Initialize 
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Display previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-MODEL_NAME = "gemini-1.5-flash-latest"
-model = genai.GenerativeModel(MODEL_NAME)
+# Chat input
+user_input = st.chat_input("Ask something...")
 
-logging.basicConfig(level=logging.INFO)
+if user_input:
+    # Save user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-def log(message):
-    logging.info(f"[AgentForge] {message}")
+    # Generate
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=user_input
+    )
 
+    bot_reply = response.text
 
-#  VALIDATION 
+    # Save
+    st.session_state.messages.append({"role": "assistant", "content": bot_reply})
 
-def validate(output):
-    if not output:
-        return False
-    if "error" in output.lower():
-        return False
-    return True
-
-
-# TOOLS 
-
-class Tools:
-
-    @staticmethod
-    def calculator(expression):
-        try:
-            
-            result = eval(expression, {"__builtins__": {}})
-            return str(result)
-        except Exception as e:
-            return f"Calculation error: {str(e)}"
-
-
-# AGENT 
-
-class Agent:
-
-    def think(self, task):
-        try:
-            log("Sending request to Gemini...")
-            response = model.generate_content(task)
-
-            if response.text:
-                return response.text
-            else:
-                return "No response generated."
-
-        except Exception as e:
-            return f"API Error: {str(e)}"
-
-
-# ORCHESTRATOR 
-
-class Orchestrator:
-
-    def __init__(self):
-        self.agent = Agent()
-
-    def execute(self, task):
-
-        log("Executing task...")
-
-        # Simple math detection
-        if any(char.isdigit() for char in task) and any(op in task for op in ["+", "-", "*", "/"]):
-            return Tools.calculator(task)
-
-        result = self.agent.think(task)
-
-        if validate(result):
-            log("Response validated.")
-        else:
-            log("Validation failed.")
-
-        return result
-
-
-#  STREAMLIT UI 
-
-st.set_page_config(page_title="AgentForge", layout="wide")
-
-st.title(" AgentForge - BY ALGORANGERS")
-
-if "system" not in st.session_state:
-    st.session_state.system = Orchestrator()
-
-task = st.text_input("Enter your task:")
-
-if st.button("Execute Task"):
-
-    if not task.strip():
-        st.warning("Please enter a task.")
-    else:
-        with st.spinner("Agent is thinking..."):
-            result = st.session_state.system.execute(task)
-
-        st.success("Execution Complete")
-        st.write(result)
-
+    with st.chat_message("assistant"):
+        st.markdown(bot_reply)
